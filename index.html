@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>AI Thangbakhi - Mỏ Hỗn Cực Đỉnh</title>
+<!-- Tải Cloudflare Turnstile API -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+body,html{width:100%;height:100%;overflow:hidden;background-color:#000;color:#fff;position:fixed}
+#bg-video{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;object-fit:contain;z-index:1}
+.controls-bar{position:absolute;top:12px;right:12px;z-index:20;display:flex;gap:8px}
+.btn-control,.select-control{background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff;padding:6px 12px;border-radius:20px;cursor:pointer;font-size:.75rem;font-weight:500;display:flex;align-items:center;gap:4px;box-shadow:0 2px 10px rgba(0,0,0,.5);outline:0}
+.select-control option{background:#121218;color:#fff}
+.btn-control:active{transform:scale(.95)}
+.chat-wrapper{position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;justify-content:center;align-items:center;padding:12px}
+.chat-card{width:100%;max-width:380px;height:82vh;max-height:640px;background:rgba(18,18,24,.55);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:20px;border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 32px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden;transition:opacity .3s ease,transform .3s ease}
+.chat-card.hidden{opacity:0;transform:scale(.92);pointer-events:none}
+.chat-header{padding:12px 16px;display:flex;align-items:center;gap:12px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(255,255,255,.1)}
+.chat-header img{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid #ff4757}
+.chat-header-info h2{font-size:.95rem;font-weight:700;color:#ff4757}
+.chat-header-info p{font-size:.7rem;color:rgba(255,255,255,.6)}
+.chat-messages{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.message{max-width:85%;padding:10px 12px;border-radius:14px;font-size:.82rem;line-height:1.4;word-wrap:break-word;word-break:break-word;animation:fadeIn .2s ease-out;position:relative}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.user-message{align-self:flex-end;background:#ff4757;color:#fff;border-bottom-right-radius:2px}
+.ai-message{align-self:flex-start;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.12);color:#eee;border-bottom-left-radius:2px;padding-bottom:24px}
+.copy-btn{position:absolute;bottom:4px;right:8px;font-size:.65rem;background:rgba(255,255,255,.2);border:none;color:#fff;padding:2px 6px;border-radius:6px;cursor:pointer}
+.copy-btn:hover{background:#ff4757}
+.chat-footer{padding:12px;background:rgba(0,0,0,.4);border-top:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:8px}
+.status-info{font-size:.7rem;color:#ffda79;text-align:center}
+.input-row{display:flex;gap:8px}
+.input-row input[type=text]{flex:1;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-size:.85rem;outline:0}
+.input-row input[type=text]:focus{border-color:#ff4757}
+.input-row button{padding:10px 16px;border-radius:10px;border:none;background:#ff4757;color:#fff;font-size:.85rem;font-weight:600;cursor:pointer;transition:background .2s}
+.input-row button:active{background:#ff6b81}
+.chat-messages::-webkit-scrollbar{width:3px}
+.chat-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:10px}
+
+/* Auth Modal Styling */
+.auth-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:999;display:flex;justify-content:center;align-items:center;backdrop-filter:blur(10px)}
+.auth-card{width:90%;max-width:340px;padding:24px;background:rgba(22,22,30,.9);border:1px solid rgba(255,255,255,.15);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.8);text-align:center}
+.auth-card h3{color:#ff4757;margin-bottom:12px;font-size:1.2rem}
+.auth-input{width:100%;padding:10px 12px;margin:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:#fff;font-size:.85rem;outline:none}
+.auth-btn{width:100%;padding:10px;margin-top:12px;border-radius:8px;border:none;background:#ff4757;color:#fff;font-weight:700;cursor:pointer}
+.auth-switch{margin-top:12px;font-size:.75rem;color:rgba(255,255,255,.6);cursor:pointer}
+.auth-switch span{color:#ff4757;text-decoration:underline}
+
+/* Turnstile Box Styling */
+.turnstile-box{margin:12px 0;display:flex;justify-content:center;align-items:center;min-height:65px}
+</style>
+</head>
+<body>
+<video autoplay muted playsinline id="bg-video">
+    <source src="https://www.image2url.com/r2/default/videos/1791198917151-53953e58-d79b-4fd9-a054-0874949ae9eb.mp4" type="video/mp4">
+</video>
+
+<!-- Auth Modal -->
+<div class="auth-overlay" id="authModal">
+    <div class="auth-card" id="loginBox">
+        <h3>ĐĂNG NHẬP</h3>
+        <input type="email" class="auth-input" id="loginEmail" placeholder="Nhập Gmail...">
+        <input type="password" class="auth-input" id="loginPass" placeholder="Nhập Mật khẩu...">
+        
+        <!-- Khung Cloudflare Turnstile CAPTCHA đã gắn ID trực tiếp -->
+        <div class="turnstile-box">
+            <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-theme="dark"></div>
+        </div>
+
+        <button class="auth-btn" onclick="handleLogin()">VÀO CHAT</button>
+        <div class="auth-switch">Chưa có tài khoản? <span onclick="toggleAuthMode(true)">Đăng ký ngay</span></div>
+    </div>
+    <div class="auth-card" id="registerBox" style="display:none;">
+        <h3>ĐĂNG KÝ TÀI KHOẢN</h3>
+        <input type="email" class="auth-input" id="regEmail" placeholder="Nhập Gmail...">
+        <input type="text" class="auth-input" id="regName" placeholder="Tên muốn đặt...">
+        <input type="password" class="auth-input" id="regPass" placeholder="Mật khẩu...">
+        <button class="auth-btn" onclick="handleRegister()">TẠO TÀI KHOẢN</button>
+        <div class="auth-switch">Đã có tài khoản? <span onclick="toggleAuthMode(false)">Đăng nhập</span></div>
+    </div>
+</div>
+
+<div class="controls-bar">
+    <select class="select-control" id="emotionSelect">
+        <option value="normal" selected="selected">😐 Bình thường</option>
+        <option value="happy">😊 Vui vẻ</option>
+        <option value="sad">😔 Trầm buồn</option>
+        <option value="smart">🧠 Thông minh</option>
+        <option value="toxic">🔥 Hỗn láo</option>
+    </select>
+    <button class="btn-control" id="toggleAudioBtn" onclick="toggleAudio()"><span id="audioIcon">🔇</span><span id="audioText">Tắt tiếng</span></button>
+    <button class="btn-control" onclick="toggleChatWindow()">👁️<span id="hideText">Hiện/Ẩn khung</span></button>
+</div>
+
+<div class="chat-wrapper">
+    <div class="chat-card" id="chatCard">
+        <div class="chat-header">
+            <img id="aiAvatar" src="https://cdn.phototourl.com/member/2026-10-05-cbe6e350-9e40-4842-828b-d241e911f7e3.jpg" alt="Logo AI Thangbakhi">
+            <div class="chat-header-info">
+                <h2>AI Thangbakhi</h2>
+                <p id="userProfileTag">Mỏ Hỗn Bá Vương</p>
+            </div>
+            <button class="btn-control" style="margin-left:auto;" onclick="handleLogout()">Đăng xuất</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="message ai-message">Đã cập nhật kết nối OpenRouter AI mới nhất! Hỏi lẹ lên!</div>
+        </div>
+        <div class="chat-footer">
+            <div class="status-info" id="statusText">📊 Nguồn API: Google Sheet</div>
+            <div class="input-row">
+                <input type="text" id="userInput" placeholder="Hỏi gì nói lẹ..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()">Chửi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const SHEET_ID = '1mUIc6PQLQrM-M5_aaOq_njLyh0H5N4RgXekM1M0bPl0';
+const SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1556990377658155069/Ug7kGGKZBGDpGpDTH4JUB6l0BOGK7EF6QqZrZJmYYCYFi5pesxyJPEBJ6tury4Dw2lmD';
+
+let cachedApiKeys = [];
+let backgroundVideos = [];
+let currentVideoIndex = 0;
+let currentUser = null;
+
+function toggleAuthMode(isRegister) {
+    document.getElementById('loginBox').style.display = isRegister ? 'none' : 'block';
+    document.getElementById('registerBox').style.display = isRegister ? 'block' : 'none';
+}
+
+function getUsers() {
+    return JSON.parse(localStorage.getItem('tbk_users') || '{}');
+}
+
+function saveUsers(users) {
+    localStorage.setItem('tbk_users', JSON.stringify(users));
+}
+
+async function handleRegister() {
+    const email = document.getElementById('regEmail').value.trim().toLowerCase();
+    const name = document.getElementById('regName').value.trim();
+    const pass = document.getElementById('regPass').value.trim();
+
+    if (!email || !name || !pass) return alert('Vui lòng điền đầy đủ thông tin!');
+
+    const users = getUsers();
+    if (users[email]) return alert('Gmail này đã được đăng ký từ trước!');
+
+    users[email] = { name, pass, failedAttempts: 0, locked: false };
+    saveUsers(users);
+
+    try {
+        const timeString = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+        await fetch(DISCORD_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: `🎉 **NGƯỜI DÙNG MỚI ĐĂNG KÝ!**\n👤 **Tên:** \`${name}\`\n📧 **Gmail:** \`${email}\`\n⏰ **Thời gian:** \`${timeString}\``
+            })
+        });
+    } catch(e) { console.error('Lỗi webhook:', e); }
+
+    alert('Đăng ký thành công! Hãy đăng nhập.');
+    toggleAuthMode(false);
+}
+
+function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const pass = document.getElementById('loginPass').value.trim();
+
+    // Kiểm tra xác thực Turnstile CAPTCHA
+    const turnstileResponse = document.querySelector('[name="cf-turnstile-response"]')?.value;
+    if (!turnstileResponse) {
+        return alert('Vui lòng hoàn thành xác thực Cloudflare Turnstile!');
+    }
+
+    const users = getUsers();
+    const user = users[email];
+
+    if (!user) return alert('Tài khoản không tồn tại!');
+    if (user.locked) return alert('Tài khoản đã bị KHÓA do nhập sai quá 5 lần!');
+
+    if (user.pass !== pass) {
+        user.failedAttempts = (user.failedAttempts || 0) + 1;
+        if (user.failedAttempts >= 5) {
+            user.locked = true;
+            alert('Nhập sai quá 5 lần! Tài khoản của bạn đã bị KHÓA.');
+        } else {
+            alert(`Mật khẩu không đúng! Bạn còn ${5 - user.failedAttempts} lần thử.`);
+        }
+        saveUsers(users);
+        return;
+    }
+
+    user.failedAttempts = 0;
+    saveUsers(users);
+
+    currentUser = { email, name: user.name };
+    localStorage.setItem('tbk_current_user', JSON.stringify(currentUser));
+    initLoggedInSession();
+}
+
+function handleLogout() {
+    localStorage.removeItem('tbk_current_user');
+    location.reload();
+}
+
+function initLoggedInSession() {
+    document.getElementById('authModal').style.display = 'none';
+    document.getElementById('userProfileTag').innerText = `User: ${currentUser.name}`;
+    loadChatHistory();
+}
+
+function getChatHistoryKey() {
+    return `tbk_chat_history_${currentUser.email}`;
+}
+
+function saveChatHistory(text, className) {
+    if (!currentUser) return;
+    const history = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '[]');
+    history.push({ text, className });
+    localStorage.setItem(getChatHistoryKey(), JSON.stringify(history));
+}
+
+function loadChatHistory() {
+    if (!currentUser) return;
+    const history = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '[]');
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML = '<div class="message ai-message">Đã cập nhật kết nối OpenRouter AI mới nhất! Hỏi lẹ lên!</div>';
+    
+    history.forEach(item => {
+        appendMessageUI(item.text, item.className, false);
+    });
+}
+
+function copyMessage(btn) {
+    const text = btn.parentElement.childNodes[0].nodeValue;
+    navigator.clipboard.writeText(text);
+    btn.innerText = 'Đã chép!';
+    setTimeout(() => btn.innerText = 'Sao chép', 1500);
+}
+
+function toggleAudio() {
+    const video = document.getElementById('bg-video');
+    const icon = document.getElementById('audioIcon');
+    const text = document.getElementById('audioText');
+    if (video.muted) {
+        video.muted = false; icon.innerText = '🔊'; text.innerText = 'Bật tiếng';
+    } else {
+        video.muted = true; icon.innerText = '🔇'; text.innerText = 'Tắt tiếng';
+    }
+}
+
+function toggleChatWindow() {
+    document.getElementById('chatCard').classList.toggle('hidden');
+}
+
+const EMOTION_PROMPTS = {
+    normal: `Bạn là "AI Thangbakhi", một trợ lý AI thông minh, lịch sự, trả lời chính xác, ngắn gọn, thân thiện và hữu ích.`,
+    happy: `Bạn là "AI Thangbakhi", một AI luôn luôn vui vẻ, tràn đầy năng lượng tích cực.`,
+    sad: `Bạn là "AI Thangbakhi", một AI đang mang tâm trạng trầm buồn.`,
+    smart: `Bạn là "AI Thangbakhi", một nhà bác học cực kỳ uyên bác.`,
+    toxic: `Bạn là "AI Thangbakhi", một AI có tính cách vô cùng mỏ hỗn, đanh đá, cà khịa. Xưng "Tao"-"Mày".`
+};
+
+function getSystemPrompt() {
+    const emotion = document.getElementById('emotionSelect').value;
+    return EMOTION_PROMPTS[emotion] || EMOTION_PROMPTS.normal;
+}
+
+function parseCSVRow(text) {
+    const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*)/g;
+    const matches = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        let val = match[1];
+        if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+        matches.push(val.trim());
+    }
+    return matches;
+}
+
+async function fetchSheetData() {
+    try {
+        const res = await fetch(SHEET_CSV_URL);
+        if (!res.ok) throw new Error('Không thể tải Google Sheet');
+        const csvData = await res.text();
+        const lines = csvData.split(/\r?\n/);
+        const keys = [], videos = [];
+        let avatarUrl = '';
+
+        lines.forEach((line, index) => {
+            const rowNumber = index + 1;
+            const columns = parseCSVRow(line);
+            if (columns.length > 1) {
+                let value = columns[1];
+                if (value) {
+                    if (rowNumber >= 1 && rowNumber <= 30 && value.length > 10) keys.push(value);
+                    else if (rowNumber >= 31 && rowNumber <= 35) videos.push(value);
+                    else if (rowNumber === 36) avatarUrl = value;
+                }
+            }
+        });
+
+        cachedApiKeys = keys;
+        if (avatarUrl) document.getElementById('aiAvatar').src = avatarUrl;
+        if (videos.length > 0) { backgroundVideos = videos; playNextVideo(); }
+        return keys;
+    } catch (error) { return []; }
+}
+
+function playNextVideo() {
+    if (backgroundVideos.length === 0) return;
+    const videoElement = document.getElementById('bg-video');
+    videoElement.src = backgroundVideos[currentVideoIndex];
+    videoElement.play().catch(() => {});
+    currentVideoIndex = (currentVideoIndex + 1) % backgroundVideos.length;
+}
+
+document.getElementById('bg-video').addEventListener('ended', playNextVideo);
+
+async function fetchOpenRouterWithKey(apiKey, model, systemPrompt, messageText) {
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin || 'https://thangbakhi.ai',
+                'X-Title': 'AI Thangbakhi'
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: messageText }
+                ]
+            })
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.choices && data.choices[0]?.message?.content) {
+            return data.choices[0].message.content;
+        }
+    } catch (e) {
+        clearTimeout(timeoutId);
+    }
+    return null;
+}
+
+async function sendMessage() {
+    if (!currentUser) return alert("Vui lòng đăng nhập để gửi tin nhắn!");
+
+    const userInput = document.getElementById('userInput');
+    const statusText = document.getElementById('statusText');
+    const messageText = userInput.value.trim();
+
+    if (!messageText) return;
+
+    appendMessageUI(messageText, 'user-message', true);
+    userInput.value = '';
+
+    const loadingDiv = appendMessageUI('Đang suy nghĩ...', 'ai-message', false);
+    statusText.innerText = '🔄 Đang tải Key...';
+
+    const apiKeys = cachedApiKeys.length ? cachedApiKeys : await fetchSheetData();
+    if (apiKeys.length === 0) {
+        loadingDiv.childNodes[0].nodeValue = 'Lỗi! Không tìm thấy Key nào trong Google Sheet.';
+        statusText.innerText = '❌ Không tìm thấy Key';
+        return;
+    }
+
+    const models = [
+        'google/gemini-2.0-flash-001',
+        'meta-llama/llama-3.3-70b-instruct',
+        'anthropic/claude-3.5-haiku'
+    ];
+    const currentSystemPrompt = getSystemPrompt();
+    let aiReply = null;
+
+    statusText.innerText = '⚡ Đang gửi yêu cầu...';
+
+    for (let apiKey of apiKeys) {
+        const promises = models.map(model => fetchOpenRouterWithKey(apiKey, model, currentSystemPrompt, messageText));
+        const results = await Promise.all(promises);
+        aiReply = results.find(res => res !== null);
+
+        if (aiReply) break;
+    }
+
+    if (aiReply) {
+        loadingDiv.childNodes[0].nodeValue = aiReply;
+        statusText.innerText = `✅ Phản hồi thành công`;
+        saveChatHistory(aiReply, 'ai-message');
+    } else {
+        loadingDiv.childNodes[0].nodeValue = `Tất cả OpenRouter API Key hiện tại đều bận, sai hoặc hết hạn. Vui lòng kiểm tra lại Google Sheet!`;
+        statusText.innerText = '❌ Thất bại';
+    }
+}
+
+function appendMessageUI(text, className, isSave = true) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${className}`;
+    messageDiv.innerText = text;
+
+    if (className === 'ai-message') {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerText = 'Sao chép';
+        copyBtn.onclick = function() { copyMessage(this); };
+        messageDiv.appendChild(copyBtn);
+    }
+
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    if (isSave) saveChatHistory(text, className);
+    return messageDiv;
+}
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter') sendMessage();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    fetchSheetData();
+    const savedUser = localStorage.getItem('tbk_current_user');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        initLoggedInSession();
+    }
+});
+</script>
+</body>
+</html>
